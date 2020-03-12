@@ -437,6 +437,7 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 		msgs = append(msgs, bgp.NewBGPUpdateMessage(nlris, nil, nil))
 	})
 
+	var bgpsec_flag bool
 	for _, cages := range p.hashmap {
 		for _, c := range cages {
 			paths := c.paths
@@ -447,8 +448,20 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 				attrsLen += a.Len()
 			}
 
+			// remove NLRI if BGPSec update
+			for _, a := range attrs {
+				if typ := a.GetType(); typ == bgp.BGP_ATTR_TYPE_BGPSEC && paths[0].BgpsecEnable &&
+					paths[0].IsBgpsecAttrInDels() == false {
+					bgpsec_flag = true
+				}
+			}
+
 			loop(attrsLen, paths, func(nlris []*bgp.IPAddrPrefix) {
-				msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, attrs, nlris))
+				if bgpsec_flag {
+					msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, attrs, nil))
+				} else {
+					msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, attrs, nlris))
+				}
 			})
 		}
 	}

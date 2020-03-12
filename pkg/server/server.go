@@ -38,6 +38,8 @@ import (
 	"github.com/osrg/gobgp/pkg/packet/bgp"
 )
 
+var gl_bgpsecManager *bgpsecManager
+
 type tcpListener struct {
 	l  *net.TCPListener
 	ch chan struct{}
@@ -118,24 +120,25 @@ func GrpcOption(opt []grpc.ServerOption) ServerOption {
 }
 
 type BgpServer struct {
-	bgpConfig    config.Bgp
-	acceptCh     chan *net.TCPConn
-	incomings    []*channels.InfiniteChannel
-	mgmtCh       chan *mgmtOp
-	policy       *table.RoutingPolicy
-	listeners    []*tcpListener
-	neighborMap  map[string]*peer
-	peerGroupMap map[string]*peerGroup
-	globalRib    *table.TableManager
-	rsRib        *table.TableManager
-	roaManager   *roaManager
-	shutdownWG   *sync.WaitGroup
-	watcherMap   map[watchEventType][]*watcher
-	zclient      *zebraClient
-	bmpManager   *bmpClientManager
-	mrtManager   *mrtManager
-	roaTable     *table.ROATable
-	uuidMap      map[string]uuid.UUID
+	bgpConfig     config.Bgp
+	acceptCh      chan *net.TCPConn
+	incomings     []*channels.InfiniteChannel
+	mgmtCh        chan *mgmtOp
+	policy        *table.RoutingPolicy
+	listeners     []*tcpListener
+	neighborMap   map[string]*peer
+	peerGroupMap  map[string]*peerGroup
+	globalRib     *table.TableManager
+	rsRib         *table.TableManager
+	roaManager    *roaManager
+	shutdownWG    *sync.WaitGroup
+	watcherMap    map[watchEventType][]*watcher
+	zclient       *zebraClient
+	bmpManager    *bmpClientManager
+	mrtManager    *mrtManager
+	roaTable      *table.ROATable
+	uuidMap       map[string]uuid.UUID
+	bgpsecManager *bgpsecManager
 }
 
 func NewBgpServer(opt ...ServerOption) *BgpServer {
@@ -144,18 +147,21 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		o(&opts)
 	}
 	roaTable := table.NewROATable()
+	bgpsecManager, _ := NewBgpsecManager(0)
 	s := &BgpServer{
-		neighborMap:  make(map[string]*peer),
-		peerGroupMap: make(map[string]*peerGroup),
-		policy:       table.NewRoutingPolicy(),
-		mgmtCh:       make(chan *mgmtOp, 1),
-		watcherMap:   make(map[watchEventType][]*watcher),
-		uuidMap:      make(map[string]uuid.UUID),
-		roaManager:   newROAManager(roaTable),
-		roaTable:     roaTable,
+		neighborMap:   make(map[string]*peer),
+		peerGroupMap:  make(map[string]*peerGroup),
+		policy:        table.NewRoutingPolicy(),
+		mgmtCh:        make(chan *mgmtOp, 1),
+		watcherMap:    make(map[watchEventType][]*watcher),
+		uuidMap:       make(map[string]uuid.UUID),
+		roaManager:    newROAManager(roaTable),
+		roaTable:      roaTable,
+		bgpsecManager: bgpsecManager,
 	}
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
+	gl_bgpsecManager = bgpsecManager
 	if len(opts.grpcAddress) != 0 {
 		grpc.EnableTracing = false
 		api := newAPIserver(s, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)
@@ -1185,6 +1191,9 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 					// and the withdrawal does not need the path attributes.
 				} else {
 					paths = s.processOutgoingPaths(peer, paths, nil)
+					for _, path := range paths {
+						path.BgpsecAttributeProcess(peer.fsm.pConf.Config)
+					}
 				}
 				sendfsmOutgoingMsg(peer, paths, nil, false)
 			}
@@ -1480,6 +1489,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				}
 
 				if len(pathList) > 0 {
+					for _, path := range pathList {
+						path.BgpsecAttributeProcess(peer.fsm.pConf.Config)
+					}
 					sendfsmOutgoingMsg(peer, pathList, nil, false)
 				}
 			} else {
@@ -1570,6 +1582,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			peer.fsm.lock.RUnlock()
 			if notEstablished || beforeUptime {
 				return
+			}
+			if peer.fsm.pConf.Config.BgpsecEnable {
+				s.bgpsecManager.validate(e)
 			}
 			pathList, eor, notification := peer.handleUpdate(e)
 			if notification != nil {
@@ -2008,6 +2023,26 @@ func (s *BgpServer) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.Ad
 	return &api.AddPathResponse{Uuid: uuidBytes}, err
 }
 
+func (s *BgpServer) AddPathBgpsec(ctx context.Context, r *api.AddPathBgpsecRequest) (*api.AddPathBgpsecResponse, error) {
+	var uuidBytes []byte
+	err := s.mgmtOperation(func() error {
+		path, err := api2Path(r.TableType, r.Path, false)
+		if err != nil {
+			return err
+		}
+		err = s.addPathList(r.VrfId, []*table.Path{path})
+		if err != nil {
+			return err
+		}
+		if id, err := uuid.NewRandom(); err == nil {
+			s.uuidMap[pathTokey(path)] = id
+			uuidBytes, _ = id.MarshalBinary()
+		}
+		return nil
+	}, true)
+	return &api.AddPathBgpsecResponse{Uuid: uuidBytes}, err
+}
+
 func (s *BgpServer) DeletePath(ctx context.Context, r *api.DeletePathRequest) error {
 	return s.mgmtOperation(func() error {
 		deletePathList := make([]*table.Path, 0)
@@ -2119,6 +2154,11 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		// update route selection options
 		table.SelectionOptions = c.RouteSelectionOptions.Config
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
+
+		s.bgpsecManager.SetAS(s.bgpConfig.Global.Config.As)
+		s.bgpsecManager.SetKeyPath(s.bgpConfig.Global.Config.KeyPath)
+		s.bgpsecManager.BgpsecInit(s.bgpConfig.Global.Config.KeyPath)
+
 		return nil
 	}, false)
 }
@@ -2827,6 +2867,8 @@ func (s *BgpServer) addNeighbor(c *config.Neighbor) error {
 		rib = s.rsRib
 	}
 	peer := newPeer(&s.bgpConfig.Global, c, rib, s.policy)
+	peer.bgpserver = s
+
 	s.addIncoming(peer.fsm.incomingCh)
 	s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy)
 	s.neighborMap[addr] = peer
@@ -4186,4 +4228,177 @@ func (s *BgpServer) watch(opts ...watchOption) (w *watcher) {
 		return nil
 	}, false)
 	return w
+}
+
+/*
+func (s *BgpServer) GenerateBgpsecPathAttr(p *bgp.PathAttributeBgpsec) error {
+
+	return nil
+}
+*/
+
+func UpdateBgpsecPathAttr(path *table.Path, peer *config.Neighbor) {
+	/* bgpsec path attr add */
+
+	var prefix_addr net.IP
+	var prefix_len uint8
+	var nlri_afi uint16
+	var nlri_safi uint8
+
+	// find nlri or as_path attributes first and extract prefix info or process the as path ignored
+	for _, a := range path.GetPathAttrs() {
+		typ := a.GetType()
+		if typ == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+			log.Printf("MP NLRI: %#v\n", a)
+			prefix_addr = a.(*bgp.PathAttributeMpReachNLRI).Value[0].(*bgp.IPAddrPrefix).Prefix
+			prefix_len = a.(*bgp.PathAttributeMpReachNLRI).Value[0].(*bgp.IPAddrPrefix).Length
+			nlri_afi = a.(*bgp.PathAttributeMpReachNLRI).AFI
+			nlri_safi = a.(*bgp.PathAttributeMpReachNLRI).SAFI
+		}
+
+		if typ == bgp.BGP_ATTR_TYPE_AS_PATH {
+			path.DelPathAttr(typ)
+		}
+	}
+
+	for _, a := range path.GetPathAttrs() {
+		typ := a.GetType()
+
+		if typ == bgp.BGP_ATTR_TYPE_BGPSEC {
+			log.Printf("HERE bgpsec again\n")
+			log.WithFields(log.Fields{
+				"Topic": "bgpsec",
+			}).Info("Func: UpdateBgpsecPathAttr")
+
+			path.BgpsecEnable = true // in case, if cloned path doesn't reflect the parent bgpsecEnable attribute
+			sp_value := a.(*bgp.PathAttributeBgpsec).SecurePathValue
+			var sp bgp.SecurePathInterface
+			sp = &bgp.SecurePath{
+				Length: 8,
+				SecurePathSegments: []bgp.SecurePathSegment{
+					{PCount: 1, Flags: 0, ASN: peer.Config.LocalAs},
+				}}
+			var new_sps bgp.SecurePathSegment = bgp.SecurePathSegment{
+				PCount: 1, Flags: 0, ASN: peer.Config.LocalAs}
+
+			// whether already exist path
+			if sp_value != nil {
+				sps := sp_value[0].(*bgp.SecurePath).SecurePathSegments
+				if sps[0].ASN == peer.Config.LocalAs {
+					// ignore, already Secure Path was made at past
+					log.WithFields(log.Fields{
+						"Topic": "bgpsec",
+					}).Info("already Secure Path was made at past, ignore")
+					return
+				}
+				sps = append([]bgp.SecurePathSegment{new_sps}, sps...)
+				sp_value[0].(*bgp.SecurePath).Length = uint16(len(sps)*6 + 2)
+				sp_value[0].(*bgp.SecurePath).SecurePathSegments = sps
+
+			} else {
+				sp_value = append([]bgp.SecurePathInterface{sp}, sp_value...)
+				sp_value[0].(*bgp.SecurePath).Length = uint16(len(sp_value)*6 + 2)
+			}
+
+			// Signature Block handling
+			//
+			var sb bgp.SignatureBlockInterface
+			sb = &bgp.SignatureBlock{
+				Length: 95,
+				AID:    1,
+				SignatureSegments: []bgp.SignatureSegment{
+					{
+						SKI:       [20]uint8{0},
+						Length:    0,
+						Signature: nil,
+					},
+				},
+			}
+			var new_ss bgp.SignatureSegment = bgp.SignatureSegment{
+				Length:    0,
+				Signature: nil,
+				SKI:       [20]uint8{0},
+			}
+
+			ski_value := &sb.(*bgp.SignatureBlock).SignatureSegments[0].SKI
+			ski_value2 := &new_ss.SKI
+
+			ski := peer.Config.Ski
+			for i, _ := range ski {
+				if i > 19 {
+					break
+				}
+				n, _ := strconv.ParseUint(ski[2*i:2*i+2], 16, 8) // base:16, upto 8 bit
+				ski_value[i] = uint8(n)
+				ski_value2[i] = uint8(n)
+				//fmt.Printf("%d - %x ", i, uint8(n))
+			}
+
+			bc := &BgpsecCrypto{
+				Peer_as:  peer.Config.LocalAs,
+				Local_as: peer.Config.PeerAs,
+				SKI_str:  peer.Config.Ski,
+				PxAddr:   prefix_addr,
+				PxLen:    prefix_len,
+				Afi:      nlri_afi,
+				Safi:     nlri_safi,
+			}
+
+			log.Printf("++ prefix_addr: %#v \n", prefix_addr)
+			signature, sigLen := bc.GenerateSignature(sp_value, gl_bgpsecManager)
+
+			log.Printf("++ siglen: %d signature : %#v\n\n", sigLen, signature)
+
+			//sig_value := sb.(*bgp.SignatureBlock).SignatureSegments[0].Signature
+			//sig_value = append(sig_value[:], []uint8(signature))
+			//fmt.Printf("++ sig value : %#v\n\n", sig_value)
+			//fmt.Printf("++ SignatureSegment:signature : %#v\n\n", sb.(*bgp.SignatureBlock).SignatureSegments[0].Signature)
+
+			sb.(*bgp.SignatureBlock).SignatureSegments[0].Signature = signature
+			sb.(*bgp.SignatureBlock).SignatureSegments[0].Length = sigLen
+			sb.(*bgp.SignatureBlock).Length = sigLen + 20 + 2 + 1 + 2
+			log.Printf("++ sb Length: %d\n", sb.(*bgp.SignatureBlock).Length)
+			log.Println("test", prefix_addr, prefix_len, nlri_afi, nlri_safi)
+
+			new_ss.Signature = signature
+			new_ss.Length = sigLen
+
+			sb_value := a.(*bgp.PathAttributeBgpsec).SignatureBlockValue
+
+			if sp_value != nil && sb_value != nil {
+				ss := sb_value[0].(*bgp.SignatureBlock).SignatureSegments
+				ss = append([]bgp.SignatureSegment{new_ss}, ss...)
+
+				var tot uint16
+				for i := 0; i < len(ss); i++ {
+					tot += ss[i].Length + 20 + 2 // SKI(20)+siglen(2)
+				}
+				tot += 2 + 1 // Sig block Len(2)+algoid(1)
+				sb_value[0].(*bgp.SignatureBlock).Length = tot
+				sb_value[0].(*bgp.SignatureBlock).SignatureSegments = ss
+
+			} else {
+				sb_value = append([]bgp.SignatureBlockInterface{sb}, sb_value...)
+				tot_sig_len := sb_value[0].(*bgp.SignatureBlock).SignatureSegments[0].Length + 20 + 2 // SKI(20)+siglen(2)
+				sb_value[0].(*bgp.SignatureBlock).Length = tot_sig_len + 2 + 1                        // Sig block Len(2)+algoid(1)
+			}
+
+			log.Printf("++ sb_value: %#v\n\n", sb_value)
+
+			path.SetPathAttr(bgp.NewPathAttributeBgpsec(sp_value, sb_value))
+			//pattr = append(pattr, bgp.NewPathAttributeBgpsec(sp_value, sb_value))
+
+		}
+	}
+	/* TODO: for bgpsec, remove nlri */
+	/*
+		p := path
+		if p.info == nil {
+			p = p.parent
+		}
+		if p.info != nil {
+			p.info.nlri = nil
+		}
+	*/
+
 }

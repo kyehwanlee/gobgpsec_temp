@@ -144,6 +144,7 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 		LocalIdentifier:    nlri.PathLocalIdentifier(),
 		NlriBinary:         binNlri,
 		PattrsBinary:       binPattrs,
+		BgpsecValidation:   0, //int32(path.BgpsecValidation().ToInt()),
 	}
 	if s := path.GetSource(); s != nil {
 		p.SourceAsn = s.AS
@@ -262,6 +263,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 	var pi *table.PeerInfo
 	var nlri bgp.AddrPrefixInterface
 	var nexthop string
+	var bgpsec_flag bool
 
 	if path.SourceAsn != 0 {
 		pi = &table.PeerInfo{
@@ -297,6 +299,9 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 		case *bgp.PathAttributeMpReachNLRI:
 			nlri = a.Value[0]
 			nexthop = a.Nexthop.String()
+		case *bgp.PathAttributeBgpsec:
+			bgpsec_flag = true
+			pattrs = append(pattrs, attr)
 		default:
 			pattrs = append(pattrs, attr)
 		}
@@ -308,7 +313,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 		return nil, fmt.Errorf("nexthop not found")
 	}
 	rf := bgp.AfiSafiToRouteFamily(uint16(path.Family.Afi), uint8(path.Family.Safi))
-	if resource != api.TableType_VRF && rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
+	if resource != api.TableType_VRF && rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil && !bgpsec_flag {
 		pattrs = append(pattrs, bgp.NewPathAttributeNextHop(nexthop))
 	} else {
 		pattrs = append(pattrs, bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri}))
@@ -333,6 +338,18 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 
 func (s *server) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPathResponse, error) {
 	return s.bgpServer.AddPath(ctx, r)
+}
+
+func (s *server) AddPathBgpsec(ctx context.Context, r *api.AddPathBgpsecRequest) (*api.AddPathBgpsecResponse, error) {
+	/*
+		pathList, err := s.api2PathList(arg.TableType, []*Path{arg.Path})
+		var uuid []byte
+		if err == nil {
+			uuid, err = s.bgpServer.AddPath(arg.VrfId, pathList)
+		}
+		return &AddPathBgpsecResponse{Uuid: uuid}, err
+	*/
+	return s.bgpServer.AddPathBgpsec(ctx, r)
 }
 
 func (s *server) DeletePath(ctx context.Context, r *api.DeletePathRequest) (*empty.Empty, error) {

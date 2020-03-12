@@ -100,6 +100,7 @@ type peer struct {
 	localRib          *table.TableManager
 	prefixLimitWarned map[bgp.RouteFamily]bool
 	llgrEndChs        []chan struct{}
+	bgpserver         *BgpServer
 }
 
 func newPeer(g *config.Global, conf *config.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy) *peer {
@@ -352,6 +353,11 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 		return path
 	}
 
+	log.Println("bgpsecManager: ", peer.bgpserver.bgpsecManager)
+	if peer.fsm.pConf.Config.BgpsecEnable {
+		UpdateBgpsecPathAttr(path, peer.fsm.pConf)
+	}
+
 	// Note: Multiple paths having the same prefix could exist the withdrawals
 	// list in the case of Route Server setup with import policies modifying
 	// paths. In such case, gobgp sends duplicated update messages; withdraw
@@ -507,6 +513,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 			paths = append(paths, path)
 		}
 		peer.adjRibIn.Update(e.PathList)
+		log.Info(" +++++++++ gobgpd update")
 		peer.fsm.lock.RLock()
 		peerAfiSafis := peer.fsm.pConf.AfiSafis
 		peer.fsm.lock.RUnlock()

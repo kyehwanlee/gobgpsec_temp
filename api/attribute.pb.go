@@ -137,7 +137,9 @@ It has these top-level messages:
 	UpdatePeerGroupResponse
 	AddDynamicNeighborRequest
 	AddPathRequest
+	AddPathBgpsecRequest
 	AddPathResponse
+	AddPathBgpsecResponse
 	DeletePathRequest
 	ListPathRequest
 	ListPathResponse

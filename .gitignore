@@ -32,3 +32,13 @@ test/scenario_test/nosetest*.xml
 # IDE workspace
 .idea
 .vscode
+
+# USER defined
+*.swp
+cscope.*
+*.sw*
+*~
+tags
+gotags
+make_gotags.sh
+*.patch

@@ -3162,6 +3162,9 @@ type NeighborConfig struct {
 	NeighborInterface string `mapstructure:"neighbor-interface" json:"neighbor-interface,omitempty"`
 	// original -> gobgp:vrf
 	Vrf string `mapstructure:"vrf" json:"vrf,omitempty"`
+	// bgpsec enable added
+	BgpsecEnable bool   `mapstructure:"bgpsec-enable" json:"bgpsec-enable,omitempty"`
+	Ski          string `mapstructure:"SKI" json:"SKI,omitempty"`
 }
 
 func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
@@ -3205,6 +3208,12 @@ func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
 		return false
 	}
 	if lhs.Vrf != rhs.Vrf {
+		return false
+	}
+	if lhs.BgpsecEnable != rhs.BgpsecEnable {
+		return false
+	}
+	if lhs.Ski != rhs.Ski {
 		return false
 	}
 	return true
@@ -4834,6 +4843,8 @@ type GlobalConfig struct {
 	Port int32 `mapstructure:"port" json:"port,omitempty"`
 	// original -> gobgp:local-address
 	LocalAddressList []string `mapstructure:"local-address-list" json:"local-address-list,omitempty"`
+
+	KeyPath string `mapstructure:"key-path" json:"key-path,omitempty"`
 }
 
 func (lhs *GlobalConfig) Equal(rhs *GlobalConfig) bool {
@@ -5617,6 +5628,8 @@ type BgpConditions struct {
 	// original -> gobgp:rpki-validation-result
 	// specify the validation result of RPKI based on ROA as conditions.
 	RpkiValidationResult RpkiValidationResultType `mapstructure:"rpki-validation-result" json:"rpki-validation-result,omitempty"`
+	//
+	BgpsecValidationResult RpkiValidationResultType `mapstructure:"bgpsec-validation-result" json:"bgpsec-validation-result,omitempty"`
 	// original -> gobgp:match-large-community-set
 	MatchLargeCommunitySet MatchLargeCommunitySet `mapstructure:"match-large-community-set" json:"match-large-community-set,omitempty"`
 }

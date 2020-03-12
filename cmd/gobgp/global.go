@@ -928,6 +928,20 @@ func extractOrigin(args []string) ([]string, bgp.PathAttributeInterface, error) 
 	return args, bgp.NewPathAttributeOrigin(uint8(typ)), nil
 }
 
+func extractBgpsec(args []string) ([]string, bgp.PathAttributeInterface, error) {
+	for idx, arg := range args {
+		if arg == "bgpsec" && len(args) > (idx) {
+			fmt.Printf("+++++++++ BGPSec called +++++++++++++\n")
+			args = append(args[:idx], args[idx+1:]...)
+
+			spParams := make([]bgp.SecurePathInterface, 0)
+			sbParams := make([]bgp.SignatureBlockInterface, 0)
+			return args, bgp.NewPathAttributeBgpsec(spParams, sbParams), nil
+		}
+	}
+	return args, nil, nil
+}
+
 func toAs4Value(s string) (uint32, error) {
 	if strings.Contains(s, ".") {
 		v := strings.Split(s, ".")
@@ -1149,6 +1163,7 @@ func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 	var nlri bgp.AddrPrefixInterface
 	var extcomms []string
 	var err error
+	var bgpsec_flag bool
 	attrs := make([]bgp.PathAttributeInterface, 0, 1)
 
 	fns := []func([]string) ([]string, bgp.PathAttributeInterface, error){
@@ -1161,6 +1176,18 @@ func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		extractPmsiTunnel,     // 22 PMSI_TUNNEL
 		extractAigp,           // 26 AIGP
 		extractLargeCommunity, // 32 LARGE_COMMUNITY
+		extractBgpsec,         // 33 BGPSEC
+	}
+
+	/* find bgpsec argument */
+	bgpsec_flag = false
+	for _, arg := range args {
+		if arg == "bgpsec" {
+			bgpsec_flag = true
+		}
+	}
+	if bgpsec_flag == true {
+		fmt.Printf("+++ bgpsec configuration found \n")
 	}
 
 	for _, fn := range fns {
@@ -1301,7 +1328,8 @@ func parsePath(rf bgp.RouteFamily, args []string) (*api.Path, error) {
 		return nil, err
 	}
 
-	if rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
+	if rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil && bgpsec_flag != true {
+		//if rf == bgp.RF_IPv4_UC && net.ParseIP(nexthop).To4() != nil {
 		attrs = append(attrs, bgp.NewPathAttributeNextHop(nexthop))
 	} else {
 		mpreach := bgp.NewPathAttributeMpReachNLRI(nexthop, []bgp.AddrPrefixInterface{nlri})

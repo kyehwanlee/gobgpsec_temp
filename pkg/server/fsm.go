@@ -776,6 +776,10 @@ func capabilitiesFromConfig(pConf *config.Neighbor) []bgp.ParameterCapabilityInt
 		caps = append(caps, capAddPathFromConfig(pConf))
 	}
 
+	/* add BGPSec Open Capability */
+	caps = append(caps, bgp.NewBGPSecCapabilitySend())
+	caps = append(caps, bgp.NewBGPSecCapabilityRecv())
+
 	return caps
 }
 
@@ -1054,6 +1058,13 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 					}
 				}
 
+				// if bgpsec udpate, need to extract AS_PATH info into a path attribute
+				var newAsPath bgp.PathAttributeInterface
+				if bgp.IsBgpsecInMsg(body) {
+					newAsPath = bgp.ExtractAsPathAttrFromBgpsecUpdate(body)
+					log.Println("newAsPaths from BGPSec update", newAsPath)
+				}
+
 				table.UpdatePathAttrs4ByteAs(body)
 				if err = table.UpdatePathAggregator4ByteAs(body); err != nil {
 					fmsg.MsgData = err
@@ -1064,6 +1075,22 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 				peerInfo := h.fsm.peerInfo
 				h.fsm.lock.RUnlock()
 				fmsg.PathList = table.ProcessMessage(m, peerInfo, fmsg.timestamp)
+
+				// for bgpsec update message
+				for _, path := range fmsg.PathList {
+					if path.IsEOR() {
+						continue
+					}
+					for _, pa := range path.GetPathAttrs() {
+						typ := uint(pa.GetType())
+						if typ == uint(bgp.BGP_ATTR_TYPE_BGPSEC) {
+							path.BgpsecEnable = true
+							if newAsPath != nil {
+								path.SetPathAttr(newAsPath)
+							}
+						}
+					}
+				}
 				fallthrough
 			case bgp.BGP_MSG_KEEPALIVE:
 				// if the length of h.holdTimerResetCh

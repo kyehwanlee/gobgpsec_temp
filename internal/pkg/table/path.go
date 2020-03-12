@@ -90,6 +90,7 @@ type originInfo struct {
 	source             *PeerInfo
 	timestamp          int64
 	noImplicitWithdraw bool
+	bgpsecValidation   config.RpkiValidationResultType
 	isFromExternal     bool
 	eor                bool
 	stale              bool
@@ -144,6 +145,7 @@ type Path struct {
 	// For BGP Nexthop Tracking, this field shows if nexthop is invalidated by IGP.
 	IsNexthopInvalid bool
 	IsWithdraw       bool
+	BgpsecEnable     bool
 }
 
 var localSource = &PeerInfo{}
@@ -339,6 +341,7 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 		IsWithdraw:       isWithdraw,
 		IsNexthopInvalid: path.IsNexthopInvalid,
 		attrsHash:        path.attrsHash,
+		BgpsecEnable:     path.BgpsecEnable,
 	}
 }
 
@@ -356,6 +359,14 @@ func (path *Path) OriginInfo() *originInfo {
 
 func (path *Path) NoImplicitWithdraw() bool {
 	return path.OriginInfo().noImplicitWithdraw
+}
+
+func (path *Path) BgpsecValidation() config.RpkiValidationResultType {
+	return path.OriginInfo().bgpsecValidation
+}
+
+func (path *Path) SetBgpsecValidation(r config.RpkiValidationResultType) {
+	path.OriginInfo().bgpsecValidation = r
 }
 
 func (path *Path) IsFromExternal() bool {
@@ -557,12 +568,102 @@ func (path *Path) setPathAttr(a bgp.PathAttributeInterface) {
 	}
 }
 
+func (path *Path) SetPathAttr(a bgp.PathAttributeInterface) {
+	path.setPathAttr(a)
+}
+
 func (path *Path) delPathAttr(typ bgp.BGPAttrType) {
 	if len(path.dels) == 0 {
 		path.dels = []bgp.BGPAttrType{typ}
 	} else {
 		path.dels = append(path.dels, typ)
 	}
+}
+
+func (path *Path) DelPathAttr(typ bgp.BGPAttrType) {
+	path.delPathAttr(typ)
+}
+
+func (path *Path) restoreAttr(typ bgp.BGPAttrType) {
+	if len(path.dels) != 0 {
+		for i, d := range path.dels {
+			if d == typ {
+				path.dels[i] = 0
+			}
+		}
+	}
+}
+
+func (path *Path) IsBgpsecAttrInDels() bool {
+
+	if len(path.dels) != 0 {
+		for _, d := range path.dels {
+			if d == bgp.BGP_ATTR_TYPE_BGPSEC {
+				return true
+			}
+		}
+	}
+
+	return false
+
+}
+
+func (path *Path) BgpsecAttributeProcess(config config.NeighborConfig) {
+
+	if config.BgpsecEnable == false {
+		if path.BgpsecEnable {
+			for _, a := range path.GetPathAttrs() {
+				typ := a.GetType()
+				if typ == bgp.BGP_ATTR_TYPE_BGPSEC {
+					path.delPathAttr(typ)
+				}
+				if typ == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+					nexthop := path.GetNexthop()
+
+					attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+					if attr == nil {
+						path.setPathAttr(bgp.NewPathAttributeNextHop(nexthop.String()))
+					}
+
+					path.delPathAttr(typ)
+				}
+			}
+		}
+	} else { // in case of bgpsec enabled
+		if len(path.dels) != 0 {
+
+			p := path
+			for {
+				if p.parent == nil {
+					for _, a := range p.pathAttrs {
+						typ := a.GetType()
+						if typ == bgp.BGP_ATTR_TYPE_BGPSEC {
+							p.restoreAttr(typ)
+							p.BgpsecEnable = true
+						}
+						if typ == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+							p.restoreAttr(typ)
+						}
+					}
+					return
+
+				} else {
+					for _, a := range p.pathAttrs {
+						typ := a.GetType()
+						if typ == bgp.BGP_ATTR_TYPE_BGPSEC {
+							p.restoreAttr(typ)
+							p.BgpsecEnable = true
+						}
+						if typ == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+							p.restoreAttr(typ)
+						}
+					}
+				}
+				p = p.parent
+			}
+		}
+	}
+
 }
 
 // return Path's string representation

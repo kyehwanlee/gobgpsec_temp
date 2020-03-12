@@ -51,9 +51,11 @@ service GobgpApi {
   rpc AddDynamicNeighbor(AddDynamicNeighborRequest) returns (google.protobuf.Empty);
 
   rpc AddPath(AddPathRequest) returns (AddPathResponse);
+  rpc AddPathBgpsec(AddPathBgpsecRequest) returns (AddPathBgpsecResponse) {}
   rpc DeletePath(DeletePathRequest) returns (google.protobuf.Empty);
   rpc ListPath(ListPathRequest) returns (stream ListPathResponse);
   rpc AddPathStream(stream AddPathStreamRequest) returns (google.protobuf.Empty);
+
 
   rpc GetTable(GetTableRequest) returns (GetTableResponse);
   rpc MonitorTable(MonitorTableRequest) returns (stream MonitorTableResponse);
@@ -205,7 +207,17 @@ message AddPathRequest {
   Path path = 3;
 }
 
+message AddPathBgpsecRequest {
+  TableType table_type = 1;
+  string vrf_id = 2;
+  Path path = 3;
+}
+
 message AddPathResponse {
+  bytes uuid = 1;
+}
+
+message AddPathBgpsecResponse {
   bytes uuid = 1;
 }
 
@@ -549,6 +561,7 @@ message Path {
   uint32 local_identifier = 19;
   bytes nlri_binary = 20;
   repeated bytes pattrs_binary = 21;
+  int32 bgpsec_validation = 22;
 }
 
 message Destination {
