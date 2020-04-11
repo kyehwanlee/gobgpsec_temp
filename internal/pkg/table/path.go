@@ -90,6 +90,7 @@ type originInfo struct {
 	source             *PeerInfo
 	timestamp          int64
 	noImplicitWithdraw bool
+	rpkiValidation     config.RpkiValidationResultType
 	bgpsecValidation   config.RpkiValidationResultType
 	isFromExternal     bool
 	eor                bool
@@ -359,6 +360,14 @@ func (path *Path) OriginInfo() *originInfo {
 
 func (path *Path) NoImplicitWithdraw() bool {
 	return path.OriginInfo().noImplicitWithdraw
+}
+
+func (path *Path) RpkiValidation() config.RpkiValidationResultType {
+	return path.OriginInfo().rpkiValidation
+}
+
+func (path *Path) SetRpkiValidation(r config.RpkiValidationResultType) {
+	path.OriginInfo().rpkiValidation = r
 }
 
 func (path *Path) BgpsecValidation() config.RpkiValidationResultType {
@@ -631,7 +640,6 @@ func (path *Path) BgpsecAttributeProcess(config config.NeighborConfig) {
 		}
 	} else { // in case of bgpsec enabled
 		if len(path.dels) != 0 {
-
 			p := path
 			for {
 				if p.parent == nil {
@@ -660,6 +668,16 @@ func (path *Path) BgpsecAttributeProcess(config config.NeighborConfig) {
 					}
 				}
 				p = p.parent
+			}
+		}
+
+		// get rid of AS path attribute when BGPSec enabled
+		if path.BgpsecEnable {
+			for _, a := range path.GetPathAttrs() {
+				typ := a.GetType()
+				if typ == bgp.BGP_ATTR_TYPE_AS_PATH {
+					path.DelPathAttr(typ)
+				}
 			}
 		}
 	}

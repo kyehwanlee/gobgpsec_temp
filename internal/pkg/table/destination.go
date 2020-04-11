@@ -676,25 +676,21 @@ func compareRpkiValidationResult(path1, path2 *Path) *Path {
 	log.WithFields(log.Fields{
 		"Topic": "Table",
 	}).Debug("enter compareRpkiValidationResult")
-	//map[RpkiValidationResultType]int
-	//var config.RpkiValidationResultTypeToIntMap
 
 	// TODO: RPKI and BGPSec Validation result needed here
-	/*
-		p1 := config.RpkiValidationResultTypeToIntMap[path1.Validation()]
-		p2 := config.RpkiValidationResultTypeToIntMap[path2.Validation()]
+	p1 := config.RpkiValidationResultTypeToIntMap[path1.RpkiValidation()]
+	p2 := config.RpkiValidationResultTypeToIntMap[path2.RpkiValidation()]
 
-		fmt.Printf("++ rpki p1: %d (%s)\n", p1, path1.Validation())
-		fmt.Printf("++ rpki p2: %d (%s)\n", p2, path2.Validation())
+	fmt.Printf("++ rpki p1: %d (%s)\n", p1, path1.RpkiValidation())
+	fmt.Printf("++ rpki p2: %d (%s)\n", p2, path2.RpkiValidation())
 
-		if p1 == config.RpkiValidationResultTypeToIntMap[config.RPKI_VALIDATION_RESULT_TYPE_INVALID] {
-			return path2
-		} else if p2 == config.RpkiValidationResultTypeToIntMap[config.RPKI_VALIDATION_RESULT_TYPE_INVALID] {
-			return path1
-		} else {
-			return nil
-		}
-	*/
+	if p1 == config.RpkiValidationResultTypeToIntMap[config.RPKI_VALIDATION_RESULT_TYPE_INVALID] {
+		return path2
+	} else if p2 == config.RpkiValidationResultTypeToIntMap[config.RPKI_VALIDATION_RESULT_TYPE_INVALID] {
+		return path1
+	} else {
+		return nil
+	}
 	return nil
 }
 

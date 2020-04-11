@@ -466,6 +466,8 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			RemovePrivateAs:   removePrivateAs,
 			ReplacePeerAs:     pconf.AsPathOptions.Config.ReplacePeerAs,
 			AdminDown:         pconf.Config.AdminDown,
+			BgpsecEnable:      pconf.Config.BgpsecEnable,
+			Ski:               pconf.Config.Ski,
 		},
 		State: &api.PeerState{
 			SessionState: api.PeerState_SessionState(api.PeerState_SessionState_value[strings.ToUpper(string(s.SessionState))]),
@@ -629,6 +631,7 @@ func NewGlobalFromConfigStruct(c *Global) *api.Global {
 		RouterId:         c.Config.RouterId,
 		ListenPort:       c.Config.Port,
 		ListenAddresses:  c.Config.LocalAddressList,
+		KeyPath:          c.Config.KeyPath,
 		Families:         families,
 		UseMultiplePaths: c.UseMultiplePaths.Config.Enabled,
 		RouteSelectionOptions: &api.RouteSelectionOptionsConfig{

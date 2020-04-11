@@ -498,6 +498,18 @@ func getPathSymbolString(p *api.Path, idx int, showBest bool) string {
 		}
 
 	}
+	vsec := p.BgpsecValidation
+	switch vsec {
+	case 2:
+		symbols += ",V"
+	case 1:
+		symbols += ",I"
+	case 0:
+		symbols += ",N"
+	default:
+		symbols += ",N"
+	}
+
 	if showBest {
 		if p.Best && !p.IsNexthopInvalid {
 			symbols += "*>"
@@ -605,7 +617,7 @@ func showRoute(dsts []*api.Destination, showAge, showBest, showLabel bool, showI
 	headers := make([]interface{}, 0)
 	var format string
 	headers = append(headers, "") // Symbols
-	format = fmt.Sprintf("%%-3s")
+	format = fmt.Sprintf("%%-5s")
 	if showIdentifier != bgp.BGP_ADD_PATH_NONE {
 		headers = append(headers, "ID")
 		format += "%-3s "

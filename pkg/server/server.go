@@ -1191,9 +1191,6 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 					// and the withdrawal does not need the path attributes.
 				} else {
 					paths = s.processOutgoingPaths(peer, paths, nil)
-					for _, path := range paths {
-						path.BgpsecAttributeProcess(peer.fsm.pConf.Config)
-					}
 				}
 				sendfsmOutgoingMsg(peer, paths, nil, false)
 			}
@@ -1293,6 +1290,9 @@ func (s *BgpServer) propagateUpdateToNeighbors(source *peer, newPath *table.Path
 			oldList = nil
 		}
 		if paths := s.processOutgoingPaths(targetPeer, bestList, oldList); len(paths) > 0 {
+			for _, path := range paths {
+				path.BgpsecAttributeProcess(targetPeer.fsm.pConf.Config)
+			}
 			sendfsmOutgoingMsg(targetPeer, paths, nil, false)
 		}
 	}
@@ -4282,7 +4282,7 @@ func UpdateBgpsecPathAttr(path *table.Path, peer *config.Neighbor) {
 				PCount: 1, Flags: 0, ASN: peer.Config.LocalAs}
 
 			// whether already exist path
-			if sp_value != nil {
+			if sp_value != nil && len(sp_value) > 0 {
 				sps := sp_value[0].(*bgp.SecurePath).SecurePathSegments
 				if sps[0].ASN == peer.Config.LocalAs {
 					// ignore, already Secure Path was made at past
@@ -4365,7 +4365,7 @@ func UpdateBgpsecPathAttr(path *table.Path, peer *config.Neighbor) {
 
 			sb_value := a.(*bgp.PathAttributeBgpsec).SignatureBlockValue
 
-			if sp_value != nil && sb_value != nil {
+			if sp_value != nil && sb_value != nil && len(sb_value) > 0 {
 				ss := sb_value[0].(*bgp.SignatureBlock).SignatureSegments
 				ss = append([]bgp.SignatureSegment{new_ss}, ss...)
 

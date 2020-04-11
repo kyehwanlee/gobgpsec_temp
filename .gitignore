@@ -42,3 +42,4 @@ tags
 gotags
 make_gotags.sh
 *.patch
+build_exec_command.txt

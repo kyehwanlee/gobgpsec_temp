@@ -63,7 +63,23 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, isEBGP 
 			}
 			return true, 0
 		}
-		mandatory := []BGPAttrType{BGP_ATTR_TYPE_ORIGIN, BGP_ATTR_TYPE_AS_PATH}
+
+		IsBgpsecInMsg := func(m *BGPUpdate) bool {
+			for _, attr := range m.PathAttributes {
+				switch attr.(type) {
+				case *PathAttributeBgpsec:
+					return true
+				}
+			}
+			return false
+		}
+
+		var mandatory []BGPAttrType
+		if IsBgpsecInMsg(m) {
+			mandatory = []BGPAttrType{BGP_ATTR_TYPE_ORIGIN}
+		} else {
+			mandatory = []BGPAttrType{BGP_ATTR_TYPE_ORIGIN, BGP_ATTR_TYPE_AS_PATH}
+		}
 		if len(m.NLRI) > 0 {
 			mandatory = append(mandatory, BGP_ATTR_TYPE_NEXT_HOP)
 		}

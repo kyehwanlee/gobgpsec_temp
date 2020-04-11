@@ -646,6 +646,8 @@ message PeerConf {
   uint32 allow_own_as = 13;
   bool replace_peer_as = 14;
   bool admin_down = 15;
+  bool BgpsecEnable = 16;
+  string Ski = 17;
 }
 
 message PeerGroupConf {
@@ -1168,6 +1170,7 @@ message Global {
   Confederation confederation = 9;
   GracefulRestart graceful_restart = 10;
   ApplyPolicy apply_policy = 11;
+  string KeyPath = 12;
 }
 
 message Confederation {

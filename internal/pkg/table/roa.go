@@ -246,6 +246,7 @@ func (rt *ROATable) Validate(path *Path) *Validation {
 		validation.Reason = RPKI_VALIDATION_REASON_TYPE_NONE
 	}
 
+	path.SetRpkiValidation(config.RpkiValidationResultType(validation.Status))
 	return validation
 }
 

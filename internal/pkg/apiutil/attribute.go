@@ -1242,6 +1242,65 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) *api.LsAttribute {
 	return apiAttr
 }
 
+func NewBgpsecAttributeFromNative(a *bgp.PathAttributeBgpsec) *api.BgpsecAttribute {
+	securePaths := make([]*api.SecurePath, 0)
+	signatureBlocks := make([]*api.SignatureBlock, 0)
+	securePathSegments := make([]*api.SecurePathSegment, 0)
+	signatureSegments := make([]*api.SignatureSegment, 0)
+
+	// Secure Path
+	sp_value := a.SecurePathValue
+	for _, spi := range sp_value {
+		sps := spi.(*bgp.SecurePath).SecurePathSegments
+		for _, sp := range sps {
+			a_sp := &api.SecurePathSegment{
+				Pcount: uint32(sp.PCount),
+				Flags:  uint32(sp.Flags),
+				Asn:    sp.ASN,
+			}
+			securePathSegments = append(securePathSegments, a_sp)
+		}
+
+		securePath := &api.SecurePath{
+			Length:             uint32(spi.(*bgp.SecurePath).Length),
+			SecurePathSegments: securePathSegments,
+		}
+		securePaths = append(securePaths, securePath)
+	}
+
+	// Signature Block
+	sb_value := a.SignatureBlockValue
+	for _, sbi := range sb_value {
+		ss := sbi.(*bgp.SignatureBlock).SignatureSegments
+		for _, s := range ss {
+
+			var ski_value []uint8
+			for _, v := range s.SKI {
+				ski_value = append(ski_value, uint8(v))
+			}
+
+			a_ss := &api.SignatureSegment{
+				Ski:       ski_value,
+				Length:    uint32(s.Length),
+				Signature: []byte(s.Signature),
+			}
+			signatureSegments = append(signatureSegments, a_ss)
+		}
+
+		signatureBlock := &api.SignatureBlock{
+			Length:            uint32(sbi.(*bgp.SignatureBlock).Length),
+			Aid:               uint32(sbi.(*bgp.SignatureBlock).AID),
+			SignatureSegments: signatureSegments,
+		}
+		signatureBlocks = append(signatureBlocks, signatureBlock)
+	}
+
+	return &api.BgpsecAttribute{
+		SecurePath:     securePaths,
+		SignatureBlock: signatureBlocks,
+	}
+}
+
 func NewUnknownAttributeFromNative(a *bgp.PathAttributeUnknown) *api.UnknownAttribute {
 	return &api.UnknownAttribute{
 		Flags: uint32(a.Flags),
@@ -1316,6 +1375,9 @@ func MarshalPathAttributes(attrList []bgp.PathAttributeInterface) []*any.Any {
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeLs:
 			n, _ := ptypes.MarshalAny(NewLsAttributeFromNative(a))
+			anyList = append(anyList, n)
+		case *bgp.PathAttributeBgpsec:
+			n, _ := ptypes.MarshalAny(NewBgpsecAttributeFromNative(a))
 			anyList = append(anyList, n)
 		case *bgp.PathAttributeUnknown:
 			n, _ := ptypes.MarshalAny(NewUnknownAttributeFromNative(a))
@@ -1529,6 +1591,41 @@ func unmarshalAttribute(an *any.Any) (bgp.PathAttributeInterface, error) {
 			communities = append(communities, bgp.NewLargeCommunity(c.GlobalAdmin, c.LocalData1, c.LocalData2))
 		}
 		return bgp.NewPathAttributeLargeCommunities(communities), nil
+
+	case *api.BgpsecAttribute:
+		sp_value := make([]bgp.SecurePathInterface, 0)
+		for _, an := range a.SecurePath {
+			var sp bgp.SecurePathInterface
+			sp = &bgp.SecurePath{
+				Length: uint16(an.Length),
+			}
+			numberSp := an.Length / 6
+			sps := make([]bgp.SecurePathSegment, numberSp)
+			for an_seg := range an.SecurePathSegments {
+				/*
+					var seg bgp.SecurePathSegment
+					seg.PCount = uint8(an_seg.Pcount)
+					seg.Flags = uint8(an_seg.Flags)
+					seg.ASN = an_seg.Asn
+					sps = append(sps, seg)
+				*/
+				fmt.Println(an_seg)
+			}
+			sp.(*bgp.SecurePath).SecurePathSegments = sps
+			sp_value = append(sp_value, sp)
+		}
+
+		sb_value := make([]bgp.SignatureBlockInterface, 0)
+		for _, an2 := range a.SignatureBlock {
+			var sb bgp.SignatureBlockInterface
+			sb = &bgp.SignatureBlock{
+				Length: uint16(an2.Length),
+				AID:    uint8(an2.Aid),
+			}
+			sb_value = append(sb_value, sb)
+		}
+
+		return bgp.NewPathAttributeBgpsec(sp_value, sb_value), nil
 
 	case *api.UnknownAttribute:
 		return bgp.NewPathAttributeUnknown(bgp.BGPAttrFlag(a.Flags), bgp.BGPAttrType(a.Type), a.Value), nil

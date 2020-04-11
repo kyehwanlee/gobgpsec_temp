@@ -655,3 +655,41 @@ message UnknownAttribute {
     uint32 type = 2;
     bytes value = 3;
 }
+
+
+
+// BGPSec path attribute
+// 
+message SecurePathSegment {
+    uint32 pcount = 1;
+    uint32 flags = 2;
+    uint32 asn = 3;
+}
+
+message SecurePath {
+    uint32 length = 1;
+    repeated SecurePathSegment secure_path_segments = 2;
+}
+
+
+message SignatureSegment {
+  bytes ski = 1;
+  uint32 length = 2;
+  bytes signature = 3;
+
+}
+
+message SignatureBlock {
+  uint32 length = 1;
+  uint32 aid = 2;
+  repeated SignatureSegment signature_segments = 3;
+
+}
+
+message BgpsecAttribute {
+  repeated SecurePath secure_path = 1;
+  repeated SignatureBlock signature_block = 2;
+}
+
+
+

@@ -144,7 +144,7 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 		LocalIdentifier:    nlri.PathLocalIdentifier(),
 		NlriBinary:         binNlri,
 		PattrsBinary:       binPattrs,
-		BgpsecValidation:   0, //int32(path.BgpsecValidation().ToInt()),
+		BgpsecValidation:   int32(path.BgpsecValidation().ToInt()),
 	}
 	if s := path.GetSource(); s != nil {
 		p.SourceAsn = s.AS
@@ -604,6 +604,8 @@ func newNeighborFromAPIStruct(a *api.Peer) (*config.Neighbor, error) {
 		pconf.Config.AdminDown = a.Conf.AdminDown
 		pconf.Config.NeighborInterface = a.Conf.NeighborInterface
 		pconf.Config.Vrf = a.Conf.Vrf
+		pconf.Config.BgpsecEnable = a.Conf.BgpsecEnable
+		pconf.Config.Ski = a.Conf.Ski
 		pconf.AsPathOptions.Config.AllowOwnAs = uint8(a.Conf.AllowOwnAs)
 		pconf.AsPathOptions.Config.ReplacePeerAs = a.Conf.ReplacePeerAs
 
@@ -1708,6 +1710,7 @@ func newGlobalFromAPIStruct(a *api.Global) *config.Global {
 			RouterId:         a.RouterId,
 			Port:             a.ListenPort,
 			LocalAddressList: a.ListenAddresses,
+			KeyPath:          a.KeyPath,
 		},
 		ApplyPolicy: *applyPolicy,
 		AfiSafis:    families,

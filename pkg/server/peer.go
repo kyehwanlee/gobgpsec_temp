@@ -350,12 +350,11 @@ func (peer *peer) stopPeerRestarting() {
 
 func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 	if peer.ID() != path.GetSource().Address.String() {
+		log.Println("bgpsecManager: ", peer.bgpserver.bgpsecManager)
+		if peer.fsm.pConf.Config.BgpsecEnable {
+			UpdateBgpsecPathAttr(path, peer.fsm.pConf) // TODO: move this fucntion into postFilterpath
+		}
 		return path
-	}
-
-	log.Println("bgpsecManager: ", peer.bgpserver.bgpsecManager)
-	if peer.fsm.pConf.Config.BgpsecEnable {
-		UpdateBgpsecPathAttr(path, peer.fsm.pConf)
 	}
 
 	// Note: Multiple paths having the same prefix could exist the withdrawals
