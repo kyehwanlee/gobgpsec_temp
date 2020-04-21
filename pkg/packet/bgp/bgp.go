@@ -8732,10 +8732,20 @@ func (p *PathAttributeBgpsec) DecodeFromBytes(data []byte, options ...*Marshalli
 
 func NewPathAttributeBgpsec(sp_value []SecurePathInterface, sb_value []SignatureBlockInterface) *PathAttributeBgpsec {
 	//value := append(byte(sp_value), byte(sb_value))
+	var pLen uint16
+	pLen = 0
+	for _, spi := range sp_value {
+		pLen = pLen + spi.(*SecurePath).Length
+	}
+	for _, sbi := range sb_value {
+		pLen = pLen + sbi.(*SignatureBlock).Length
+	}
+
 	return &PathAttributeBgpsec{
 		PathAttribute: PathAttribute{
-			Flags: PathAttrFlags[BGP_ATTR_TYPE_BGPSEC] | BGP_ATTR_FLAG_EXTENDED_LENGTH,
-			Type:  BGP_ATTR_TYPE_BGPSEC,
+			Flags:  PathAttrFlags[BGP_ATTR_TYPE_BGPSEC] | BGP_ATTR_FLAG_EXTENDED_LENGTH,
+			Type:   BGP_ATTR_TYPE_BGPSEC,
+			Length: pLen,
 			//Value: []byte{byte(sp_value)},
 		},
 		SecurePathValue:     sp_value,

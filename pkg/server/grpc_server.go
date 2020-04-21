@@ -157,7 +157,27 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *any.Any, anyPattrs [
 func toPathApi(path *table.Path, v *table.Validation) *api.Path {
 	nlri := path.GetNlri()
 	anyNlri := apiutil.MarshalNLRI(nlri)
-	anyPattrs := apiutil.MarshalPathAttributes(path.GetPathAttrs())
+
+	// Need to extract AS path in case of bgpsec update
+	var anyPattrs []*any.Any
+	tmpPath := path.Clone(path.IsWithdraw)
+	if path.BgpsecEnable {
+		msg := &bgp.BGPUpdate{0, nil, 0, path.GetPathAttrs(), nil}
+		var newAsPath bgp.PathAttributeInterface
+
+		for _, a := range path.GetPathAttrs() {
+			typ := a.GetType()
+			if typ == bgp.BGP_ATTR_TYPE_BGPSEC {
+				newAsPath = bgp.ExtractAsPathAttrFromBgpsecUpdate(msg)
+				tmpPath.SetPathAttr(newAsPath)
+			}
+		}
+		anyPattrs = apiutil.MarshalPathAttributes(tmpPath.GetPathAttrs())
+
+	} else {
+		anyPattrs = apiutil.MarshalPathAttributes(path.GetPathAttrs())
+	}
+
 	return toPathAPI(nil, nil, anyNlri, anyPattrs, path, v)
 }
 

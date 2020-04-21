@@ -1273,7 +1273,6 @@ func NewBgpsecAttributeFromNative(a *bgp.PathAttributeBgpsec) *api.BgpsecAttribu
 	for _, sbi := range sb_value {
 		ss := sbi.(*bgp.SignatureBlock).SignatureSegments
 		for _, s := range ss {
-
 			var ski_value []uint8
 			for _, v := range s.SKI {
 				ski_value = append(ski_value, uint8(v))
@@ -1593,23 +1592,23 @@ func unmarshalAttribute(an *any.Any) (bgp.PathAttributeInterface, error) {
 		return bgp.NewPathAttributeLargeCommunities(communities), nil
 
 	case *api.BgpsecAttribute:
+		var numSeg uint32
 		sp_value := make([]bgp.SecurePathInterface, 0)
 		for _, an := range a.SecurePath {
 			var sp bgp.SecurePathInterface
 			sp = &bgp.SecurePath{
 				Length: uint16(an.Length),
 			}
-			numberSp := an.Length / 6
-			sps := make([]bgp.SecurePathSegment, numberSp)
-			for an_seg := range an.SecurePathSegments {
-				/*
-					var seg bgp.SecurePathSegment
-					seg.PCount = uint8(an_seg.Pcount)
-					seg.Flags = uint8(an_seg.Flags)
-					seg.ASN = an_seg.Asn
-					sps = append(sps, seg)
-				*/
-				fmt.Println(an_seg)
+
+			// Path segments
+			numSeg = an.Length / 6
+			sps := make([]bgp.SecurePathSegment, 0, numSeg)
+			for _, an_seg := range an.SecurePathSegments {
+				var seg bgp.SecurePathSegment
+				seg.PCount = uint8(an_seg.Pcount)
+				seg.Flags = uint8(an_seg.Flags)
+				seg.ASN = an_seg.Asn
+				sps = append(sps, seg)
 			}
 			sp.(*bgp.SecurePath).SecurePathSegments = sps
 			sp_value = append(sp_value, sp)
@@ -1622,9 +1621,25 @@ func unmarshalAttribute(an *any.Any) (bgp.PathAttributeInterface, error) {
 				Length: uint16(an2.Length),
 				AID:    uint8(an2.Aid),
 			}
+
+			// Signature Segments
+			ss := make([]bgp.SignatureSegment, 0, numSeg)
+			for _, aseg := range an2.SignatureSegments {
+				var bseg bgp.SignatureSegment
+				var ski [20]uint8
+				for i, v := range aseg.Ski {
+					if i < 20 {
+						ski[i] = v
+					}
+				}
+				bseg.SKI = ski
+				bseg.Length = uint16(aseg.Length)
+				bseg.Signature = []uint8(aseg.Signature)
+				ss = append(ss, bseg)
+			}
+			sb.(*bgp.SignatureBlock).SignatureSegments = ss
 			sb_value = append(sb_value, sb)
 		}
-
 		return bgp.NewPathAttributeBgpsec(sp_value, sb_value), nil
 
 	case *api.UnknownAttribute:
