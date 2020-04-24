@@ -351,6 +351,7 @@ func (peer *peer) stopPeerRestarting() {
 func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 	if peer.ID() != path.GetSource().Address.String() {
 		log.Println("bgpsecManager: ", peer.bgpserver.bgpsecManager)
+		log.Println("peer ID: ", peer.ID(), "path.Get source().address: ", path.GetSource().Address.String())
 		if peer.fsm.pConf.Config.BgpsecEnable {
 			UpdateBgpsecPathAttr(path, peer.fsm.pConf) // TODO: move this fucntion into postFilterpath
 		}

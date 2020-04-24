@@ -603,6 +603,10 @@ func (path *Path) restoreAttr(typ bgp.BGPAttrType) {
 	}
 }
 
+func (path *Path) RestoreAttr(typ bgp.BGPAttrType) {
+	path.restoreAttr(typ)
+}
+
 func (path *Path) IsBgpsecAttrInDels() bool {
 
 	if len(path.dels) != 0 {
@@ -614,7 +618,22 @@ func (path *Path) IsBgpsecAttrInDels() bool {
 	}
 
 	return false
+}
 
+func (path *Path) RestorePathAttrType(ptype bgp.BGPAttrType) bool {
+
+	for p := path; p != nil; p = p.parent {
+		if len(p.dels) != 0 {
+			for _, a := range p.pathAttrs {
+				typ := a.GetType()
+				if typ == ptype {
+					p.restoreAttr(typ)
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (path *Path) BgpsecAttributeProcess(config config.NeighborConfig) {
@@ -681,7 +700,6 @@ func (path *Path) BgpsecAttributeProcess(config config.NeighborConfig) {
 			}
 		}
 	}
-
 }
 
 // return Path's string representation

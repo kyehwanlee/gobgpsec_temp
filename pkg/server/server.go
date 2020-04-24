@@ -4270,6 +4270,11 @@ func UpdateBgpsecPathAttr(path *table.Path, peer *config.Neighbor) {
 				"Topic": "bgpsec",
 			}).Info("Func: UpdateBgpsecPathAttr")
 
+			// in case of originating bgpsec update
+			if as := path.GetSource().AS; as == 0 || as == peer.Config.LocalAs {
+				a = bgp.NewPathAttributeBgpsec(nil, nil)
+			}
+
 			path.BgpsecEnable = true // in case, if cloned path doesn't reflect the parent bgpsecEnable attribute
 			sp_value := a.(*bgp.PathAttributeBgpsec).SecurePathValue
 			var sp bgp.SecurePathInterface
