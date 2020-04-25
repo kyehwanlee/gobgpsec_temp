@@ -650,6 +650,20 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 	path = table.UpdatePathAttrs(peer.fsm.gConf, peer.fsm.pConf, peer.fsm.peerInfo, path)
 	peer.fsm.lock.RUnlock()
 
+	// BGPSec flags checking, then, add secure path, secure block to bgpsec path attr
+	if peer.fsm.pConf.Config.BgpsecEnable {
+		for _, pa := range path.GetPathAttrs() {
+			typ := uint(pa.GetType())
+			if typ == uint(bgp.BGP_ATTR_TYPE_BGPSEC) {
+				path.BgpsecEnable = true
+			}
+		}
+		if path.BgpsecEnable == true {
+			log.Println("bgpsecManager: ", peer.bgpserver.bgpsecManager)
+			UpdateBgpsecPathAttr(path, peer.fsm.pConf)
+		}
+	}
+
 	return path, options, false
 }
 
