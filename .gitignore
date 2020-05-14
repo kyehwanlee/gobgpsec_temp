@@ -43,3 +43,4 @@ gotags
 make_gotags.sh
 *.patch
 build_exec_command.txt
+Gobgp_Build_Run_Command.txt
