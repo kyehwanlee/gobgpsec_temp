@@ -508,7 +508,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.RouteFamily, *bg
 			paths = append(paths, path)
 		}
 		peer.adjRibIn.Update(e.PathList)
-		log.Info(" +++++++++ gobgpd update")
+		log.Info("gobgpd update")
 		peer.fsm.lock.RLock()
 		peerAfiSafis := peer.fsm.pConf.AfiSafis
 		peer.fsm.lock.RUnlock()

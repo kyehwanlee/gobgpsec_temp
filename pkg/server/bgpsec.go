@@ -107,12 +107,11 @@ func (bc *BgpsecCrypto) GenerateSignature(sp []bgp.SecurePathInterface, bm *bgps
 	//
 	//  call sign() function
 	//
-	log.Printf("+ bgpsec sign data testing...\n\n")
-	log.WithFields(log.Fields{"Topic": "bgpsec"}).Infof("bgpsec sign: Generate Signature\n")
+	log.WithFields(log.Fields{"Topic": "bgpsec"}).Infof("bgpsec sign: Generate Signature")
 	//sp := bpa.(*bgp.PathAttributeBgpsec).SecurePathValue.(*bgp.SecurePath)
 	sp_value := sp[0].(*bgp.SecurePath).SecurePathSegments[0]
 	sp_len := len(sp[0].(*bgp.SecurePath).SecurePathSegments)
-	log.Println("+++ secure path value:", sp_value)
+	log.Debug("secure path value:", sp_value)
 
 	// ------ prefix handling ---------------
 	ga := &Go_SCA_Prefix{
@@ -141,7 +140,7 @@ func (bc *BgpsecCrypto) GenerateSignature(sp []bgp.SecurePathInterface, bm *bgps
 	C.PrintSCA_Prefix(*prefix)
 	*/
 
-	log.Printf("bc.Pxaddr: %#v, ga.addr: %#v, prefix.addr:%#v\n", bc.PxAddr, ga.Addr, prefix)
+	log.Debug("bc.Pxaddr: %#v, ga.addr: %#v, prefix.addr:%#v", bc.PxAddr, ga.Addr, prefix)
 
 	//os.Exit(3)
 
@@ -174,8 +173,8 @@ func (bc *BgpsecCrypto) GenerateSignature(sp []bgp.SecurePathInterface, bm *bgps
 
 	// ------ ski handling ---------------
 	bs, _ := hex.DecodeString(bc.SKI_str)
-	log.Printf("type of bs: %T\n", bs)
-	log.Printf("string test: %02X \n", bs)
+	log.Debug("type of bs: %T", bs)
+	log.Debug("string test: %02X ", bs)
 
 	cbuf := (*[20]C.uchar)(C.malloc(20))
 	defer C.free(unsafe.Pointer(cbuf))
@@ -202,7 +201,7 @@ func (bc *BgpsecCrypto) GenerateSignature(sp []bgp.SecurePathInterface, bm *bgps
 	//bgpsecData.hashMessage = (*C.SCA_HashMessage)(hash)
 	//bgpsecData.hashMessage = nil
 	if bm.bgpsec_path_attr != nil {
-		log.Println("path attr:", bm.bgpsec_path_attr)
+		log.Debug("path attr:", bm.bgpsec_path_attr)
 	}
 
 	var peeras uint32 = bc.Local_as
@@ -212,8 +211,8 @@ func (bc *BgpsecCrypto) GenerateSignature(sp []bgp.SecurePathInterface, bm *bgps
 		big = append(big, u8)
 	}
 
-	log.Printf("++ peerAS :%#v\n", big)
-	log.Printf("++ peerAS BigEndian :%#v\n", binary.BigEndian.Uint32(big[4:8]))
+	log.Debug("peerAS :%#v", big)
+	log.Debug("peerAS BigEndian :%#v", binary.BigEndian.Uint32(big[4:8]))
 
 	bgpsecData := C.SCA_BGPSecSignData{
 		peerAS:      C.uint(binary.BigEndian.Uint32(big[4:8])),
@@ -230,8 +229,8 @@ func (bc *BgpsecCrypto) GenerateSignature(sp []bgp.SecurePathInterface, bm *bgps
 	// if more than 2 hops bgpsec verify
 	if sp_len > 1 && bm.bgpsec_path_attr != nil {
 		log.WithFields(log.Fields{"Topic": "bgpsec"}).Info("more than 2 hops verification")
-		log.Println("path attr:", bm.bgpsec_path_attr)
-		log.Println("val data:", bm.bgpsecValData)
+		log.Debug("path attr:", bm.bgpsec_path_attr)
+		log.Debug("val data:", bm.bgpsecValData)
 
 		pa := C.malloc(C.ulong(bm.bgpsec_path_attr_length))
 		buf := &bytes.Buffer{}
@@ -260,12 +259,12 @@ func (bc *BgpsecCrypto) GenerateSignature(sp []bgp.SecurePathInterface, bm *bgps
 	//retVal := C._sign(&bgpsecData)
 	retVal := C.sign(1, arrBgpsecData)
 
-	log.Println("return: value:", retVal, " and status: ", bgpsecData.status)
+	log.Info("return: value:", retVal, " and status: ", bgpsecData.status)
 	if retVal == 1 {
-		log.Println(" sign function SUCCESS ...")
+		log.Info("sign function SUCCESS ...")
 
 		if bgpsecData.signature != nil {
-			log.Printf("signature: %#v\n", bgpsecData.signature)
+			log.Debug("signature: %#v", bgpsecData.signature)
 
 			ret_array := func(sig_data *C.SCA_Signature) []uint8 {
 				buf := make([]uint8, 0, uint(sig_data.sigLen))
@@ -276,7 +275,7 @@ func (bc *BgpsecCrypto) GenerateSignature(sp []bgp.SecurePathInterface, bm *bgps
 				return buf
 			}(bgpsecData.signature)
 
-			log.Println("ret:", ret_array)
+			log.Debug("ret:", ret_array)
 
 			return []byte(ret_array), uint16(bgpsecData.signature.sigLen)
 		}
@@ -312,21 +311,21 @@ type bgpsecManager struct {
 func (bm *bgpsecManager) BgpsecInit(key string) ([]byte, error) {
 
 	// --------- call sca_SetKeyPath -----------------------
-	log.Printf("+ setKey path call testing...\n\n")
+	log.Debug("+ setKey path call testing...")
 	//sca_SetKeyPath needed in libSRxCryptoAPI.so
 
 	keyPath := C.CString(key)
 	keyRet := C.sca_SetKeyPath(keyPath)
-	log.Println("sca_SetKeyPath() return:", keyRet)
+	log.Debug("+ sca_SetKeyPath() return:", keyRet)
 	if keyRet != 1 {
 		fmt.Errorf("setKey failed")
 	}
 
 	// --------- call Init() function ---------------------
-	log.Printf("+ Init call testing...\n\n")
+	log.Debug("+ Init call testing...")
 
 	str := C.CString("PUB:" + key + "/ski-list.txt;PRIV:" + key + "/priv-ski-list.txt")
-	log.Printf("+ str: %s\n", C.GoString(str))
+	log.Debug("+ str: %s", C.GoString(str))
 
 	var stat *scaStatus
 	initRet := C.init(str, C.int(7), (*C.uint)(stat))
@@ -382,15 +381,15 @@ func (bm *bgpsecManager) validate(e *fsmMsg) {
 		for _, p := range path.GetPathAttrs() {
 			typ := uint(p.GetType())
 			if typ == uint(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI) {
-				log.Printf("received MP NLRI: %#v\n", path)
+				log.Debug("received MP NLRI: %#v", path)
 				prefix_addr = p.(*bgp.PathAttributeMpReachNLRI).Value[0].(*bgp.IPAddrPrefix).Prefix
 				prefix_len = p.(*bgp.PathAttributeMpReachNLRI).Value[0].(*bgp.IPAddrPrefix).Length
 				nlri_afi = p.(*bgp.PathAttributeMpReachNLRI).AFI
 				nlri_safi = p.(*bgp.PathAttributeMpReachNLRI).SAFI
 
-				log.Println("prefix:", prefix_addr, prefix_len, nlri_afi, nlri_safi)
+				log.WithFields(log.Fields{"Topic": "Bgpsec"}).Debug("prefix:", prefix_addr, prefix_len, nlri_afi, nlri_safi)
 				nlri_processed = true
-				log.Printf("received MP NLRI: %#v\n", nlri_processed)
+				log.Debug("received MP NLRI: %#v", nlri_processed)
 			}
 		}
 
@@ -398,7 +397,7 @@ func (bm *bgpsecManager) validate(e *fsmMsg) {
 		for _, p := range path.GetPathAttrs() {
 			typ := uint(p.GetType())
 			if typ == uint(bgp.BGP_ATTR_TYPE_BGPSEC) && nlri_processed {
-				log.Printf("+++ bgpsec validation start \n")
+				log.Debug("bgpsec validation start ")
 
 				var myas uint32 = bm.AS
 				big2 := make([]byte, 4, 4)
@@ -464,15 +463,15 @@ func (bm *bgpsecManager) validate(e *fsmMsg) {
 				/* comment out for performance measurement
 				C.PrintSCA_Prefix(*prefix2)
 				*/
-				log.Printf("prefix2 : %#v\n", prefix2)
+				log.Debug("prefix2 : %#v", prefix2)
 
 				valData.nlri = prefix2
-				log.Printf(" valData : %#v\n", valData)
-				log.Printf(" valData.bgpsec_path_attr : %#v\n", valData.bgpsec_path_attr)
+				log.Debug("valData : %#v", valData)
+				log.Debug("valData.bgpsec_path_attr : %#v", valData.bgpsec_path_attr)
 				/* comment out for performance measurement
 				C.printHex(C.int(bs_path_attr_length), valData.bgpsec_path_attr)
 				*/
-				log.Printf(" valData.nlri : %#v\n", *valData.nlri)
+				log.Debug("valData.nlri : %#v", *valData.nlri)
 
 				bm.bgpsecValData = valData
 				// call validate
@@ -483,10 +482,10 @@ func (bm *bgpsecManager) validate(e *fsmMsg) {
 				result := config.RPKI_VALIDATION_RESULT_TYPE_NONE
 				switch ret {
 				case 1:
-					log.Println(" +++ Validation function SUCCESS ...")
+					log.Println("Validation function SUCCESS ...")
 					result = config.RPKI_VALIDATION_RESULT_TYPE_VALID
 				case 0:
-					log.Println(" Validation function Failed...")
+					log.Println("Validation function Failed...")
 					switch valData.status {
 					case 1:
 						log.Println("Status Error: signature error")
