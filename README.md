@@ -3,10 +3,9 @@
 
 Gobgpsec was developed for applying BGPSec Routing software, NIST BGP-SRx
 into GoBGP by employees of the Federal Government in the course of their 
-official duties. NIST BGP-SRx is a open source BGPSec implementation for 
+official duties. NIST BGP-SRx is an open source BGPSec implementation for 
 supporting RPKI and BGPSec protocol specification in RFC. 
-Additional information can be found at [BGP Secure Routing Extension (BGP‑SRx) Prototype]
-(https://www.nist.gov/services-resources/software/bgp-secure-routing-extension-bgp-srx-prototype)
+Additional information can be found at [BGP Secure Routing Extension (BGP‑SRx) Prototype](https://www.nist.gov/services-resources/software/bgp-secure-routing-extension-bgp-srx-prototype)
 
 
 NIST assumes no responsibility whatsoever for its use by other parties,
