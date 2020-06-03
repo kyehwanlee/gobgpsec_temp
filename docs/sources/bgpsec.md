@@ -23,19 +23,22 @@
 
 
 2. Example Configuration
-'''toml
-    [global.config]
-      as = <as number>
-      router-id = <address string>
-      key-path = /path/to/keys
-      # (example) key-path = "/var/lib/bgpsec-keys/"
 
-    [[neighbors]]
-      [neighbors.config]
-        neighbor-address = <neighbor address>
-        peer-as = <neighbor asn>
-        bgpsec-enable = <true | false>
-        SKI = <20 byte hexdecimal string> 
-        # (example) SKI = "45CAD0AC44F77EFAA94602E9984305215BF47DCD"
-'''
+```toml
+[global.config]
+  as = <as number>
+  router-id = <address string>
+  key-path = /path/to/keys
+  # (example) key-path = "/var/lib/bgpsec-keys/"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = <neighbor address>
+    peer-as = <neighbor asn>
+    bgpsec-enable = <true | false>
+    SKI = <20 byte hexdecimal string> 
+    # (example) SKI = "45CAD0AC44F77EFAA94602E9984305215BF47DCD"
+```
+
+
 
