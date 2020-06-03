@@ -1,7 +1,6 @@
 
 
-Configuration for using NIST SRxCryptoAPI library of BGPSec Protocol
-=====================================================================
+# Configuration for using NIST SRxCryptoAPI library of BGPSec Protocol
 
 
 1. To enable BGPSec validation and signing features on gobgp, There are three necessary 
@@ -24,7 +23,7 @@ Configuration for using NIST SRxCryptoAPI library of BGPSec Protocol
 
 
 2. Example Configuration
-
+'''toml
     [global.config]
       as = <as number>
       router-id = <address string>
@@ -38,4 +37,5 @@ Configuration for using NIST SRxCryptoAPI library of BGPSec Protocol
         bgpsec-enable = <true | false>
         SKI = <20 byte hexdecimal string> 
         # (example) SKI = "45CAD0AC44F77EFAA94602E9984305215BF47DCD"
+'''
 
