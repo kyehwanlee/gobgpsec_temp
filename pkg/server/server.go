@@ -659,7 +659,7 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 			}
 		}
 		if path.BgpsecEnable == true {
-			log.Debug("bgpsecManager: ", peer.bgpserver.bgpsecManager)
+			log.Debugf("bgpsecManager: %#02v", peer.bgpserver.bgpsecManager)
 			UpdateBgpsecPathAttr(path, peer.fsm.pConf)
 		}
 	}
@@ -4263,7 +4263,7 @@ func UpdateBgpsecPathAttr(path *table.Path, peer *config.Neighbor) {
 	for _, a := range path.GetPathAttrs() {
 		typ := a.GetType()
 		if typ == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-			log.Debug("MP NLRI: %#v", a)
+			log.Debugf("MP NLRI: %#v", a)
 			prefix_addr = a.(*bgp.PathAttributeMpReachNLRI).Value[0].(*bgp.IPAddrPrefix).Prefix
 			prefix_len = a.(*bgp.PathAttributeMpReachNLRI).Value[0].(*bgp.IPAddrPrefix).Length
 			nlri_afi = a.(*bgp.PathAttributeMpReachNLRI).AFI
@@ -4362,10 +4362,8 @@ func UpdateBgpsecPathAttr(path *table.Path, peer *config.Neighbor) {
 				Safi:     nlri_safi,
 			}
 
-			log.Debug("+ prefix_addr: %#v ", prefix_addr)
 			signature, sigLen := bc.GenerateSignature(sp_value, gl_bgpsecManager)
-
-			log.Debug("+ siglen: %d signature : %#v", sigLen, signature)
+			log.Debugf("+ siglen: %d signature (SEND) : %#02v", sigLen, signature)
 
 			//sig_value := sb.(*bgp.SignatureBlock).SignatureSegments[0].Signature
 			//sig_value = append(sig_value[:], []uint8(signature))
@@ -4375,8 +4373,8 @@ func UpdateBgpsecPathAttr(path *table.Path, peer *config.Neighbor) {
 			sb.(*bgp.SignatureBlock).SignatureSegments[0].Signature = signature
 			sb.(*bgp.SignatureBlock).SignatureSegments[0].Length = sigLen
 			sb.(*bgp.SignatureBlock).Length = sigLen + 20 + 2 + 1 + 2
-			log.Debug("+ sb Length: %d", sb.(*bgp.SignatureBlock).Length)
-			log.Debug("+ test", prefix_addr, prefix_len, nlri_afi, nlri_safi)
+			log.Debugf("+ sb Length: %d", sb.(*bgp.SignatureBlock).Length)
+			log.Debugf("+ prefix addr: %#v, length(%d), nlri afi: %#v, nlri safi: %#v", prefix_addr, prefix_len, nlri_afi, nlri_safi)
 
 			new_ss.Signature = signature
 			new_ss.Length = sigLen
@@ -4401,7 +4399,7 @@ func UpdateBgpsecPathAttr(path *table.Path, peer *config.Neighbor) {
 				sb_value[0].(*bgp.SignatureBlock).Length = tot_sig_len + 2 + 1                        // Sig block Len(2)+algoid(1)
 			}
 
-			log.Debug("+ sb_value: %#v", sb_value)
+			log.Debugf("+ sb_value: %#v", sb_value)
 
 			path.SetPathAttr(bgp.NewPathAttributeBgpsec(sp_value, sb_value))
 			//pattr = append(pattr, bgp.NewPathAttributeBgpsec(sp_value, sb_value))
